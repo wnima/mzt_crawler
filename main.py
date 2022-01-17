@@ -1,5 +1,4 @@
 # https://mmzztt.com/photo/
-from email import header
 import json
 import logging
 import os
