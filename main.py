@@ -18,10 +18,33 @@ def save_curr_data(conf_path='./conf.json',curr_url=None,curr_img_url=None):
     with open(conf_path, 'w',encoding ='utf8') as f:
         json.dump(conf,f,ensure_ascii = False)
 
+def save_curr_img_info(dic_path, curr_url,title,date,lable,anchor,conf_path='./info.json'):
+    conf = {
+        "currUrl":curr_url,
+        "title": title,
+        "date": date,
+        "lables":lable,
+        "anchor": anchor,
+    }
+
+    if not os.path.exists(dic_path):
+        os.mkdir(dic_path)
+    title = title.replace('/','_').replace('\\','_').replace(' ','')
+    p = os.path.join(dic_path, title)
+    if not os.path.exists(p):
+        os.mkdir(p)
+
+    with open(os.path.join(p, conf_path), 'w',encoding ='utf8') as f:
+        json.dump(conf,f,ensure_ascii = False)
+        
+    logging.info("info %s",conf)
+
 def read_curr_data_curr_url(conf_path='./conf.json'):
     with open(conf_path, 'r',encoding ='utf8') as f:
         conf = json.loads(f.read())
-        return conf['currUrl'] 
+        if 'currUrl' in conf:
+            return conf['currUrl'] 
+    return None
 
 def save_img_to_file(img_url, dic_path, dic_name):
     '''
@@ -65,6 +88,34 @@ def find_imgs(driver: webdriver):
     '''
     获取详情页所有图片
     '''
+    nowhandle = driver.current_window_handle
+    allhandles = driver.window_handles
+    # 目标页和搜索栏目页切换下
+    for handle in allhandles:
+        if handle != nowhandle:
+            driver.switch_to.window(handle)
+
+            while(True):
+                next = driver.find_element(
+                    By.CSS_SELECTOR, 'div.uk-padding-small.uk-background-default.uk-text-right>div.uk-text-bottom.uk-margin-small-top>a')
+                if next is None:
+                    break
+                name = driver.find_element(
+                    By.CSS_SELECTOR, 'h1.uk-article-title.uk-text-truncate').text
+                lables = find_lables(driver)
+                anchor = find_anchor(driver)
+                date = find_date(driver)
+                save_curr_img_info(save_path,driver.current_url,name,date,lables,anchor)
+                next.click()
+                sleep(random.randint(1, 10))
+            driver.close()
+            driver.switch_to.window(nowhandle)
+
+
+def xxxxxxfind_imgs(driver: webdriver):
+    '''
+    获取详情页所有图片
+    '''
     name = ''
     nowhandle = driver.current_window_handle
     allhandles = driver.window_handles
@@ -75,6 +126,15 @@ def find_imgs(driver: webdriver):
             name = driver.find_element(
                 By.CSS_SELECTOR, 'h1.uk-article-title.uk-text-truncate').text
             temp_name: str = name
+
+            lables = find_lables(driver)
+
+            anchor = find_anchor(driver)
+
+            date = find_date(driver)
+
+            save_curr_img_info(save_path,driver.current_url,name,date,lables,anchor)
+
             while(True):
                 img = driver.find_element(
                     By.CSS_SELECTOR, 'figure.uk-inline>img')
@@ -87,18 +147,54 @@ def find_imgs(driver: webdriver):
                     By.CSS_SELECTOR, 'h1.uk-article-title.uk-text-truncate').text
                 if not temp_name.startswith(name):
                     name = temp_name
-                if save_img_to_file(img_url, save_path, name):
-                    # 保存成功 记录当前进度  当前页URL，当前imgurl
-                    save_curr_data(curr_url=driver.current_url,curr_img_url=img_url)
-                    logging.info("%s download done!", img_url)
-                else:
-                    # 失败 等待1分钟后继续
+                    lables = find_lables(driver)
+                    anchor = find_anchor(driver)
+                    date = find_date(driver)
+                    save_curr_img_info(save_path,driver.current_url,name,date,lables,anchor)
+                try:
+                    if save_img_to_file(img_url, save_path, name):
+                        # 保存成功 记录当前进度  当前页URL，当前imgurl
+                        save_curr_data(curr_url=driver.current_url,curr_img_url=img_url)
+                        logging.info("%s download done!", img_url)
+                    else:
+                        logging.error("%s save_img_to_file fail! wait 60s", img_url)
+                        # 失败 等待1分钟后继续
+                        sleep(60)
+                        continue
+                except Exception as e:
+                    logging.error("%s download fail! wait 60s", img_url)
+                    logging.error(e)
                     sleep(60)
-                    continue
+                    continue    
                 next.click()
                 sleep(random.randint(1, 10))
             driver.close()
             driver.switch_to.window(nowhandle)
+
+
+def find_lables(driver):
+    '''
+    查找标签
+    '''
+    lable_element = driver.find_elements(By.CSS_SELECTOR, 'div.uk-card-body>button.uk-button.uk-button-small>a')
+    lables = []
+    for element in lable_element:
+        lables.append(element.text)
+    return lables
+
+def find_anchor(driver):
+    '''
+    查找名字
+    '''
+    lable_element = driver.find_element(By.CSS_SELECTOR, 'div.uk-card-header>div.uk-grid>div.uk-width-expand>h3.uk-card-title.uk-h3.uk-margin-remove-bottom>a.uk-button.uk-button-text.uk-text-lead')
+    return lable_element.text
+
+def find_date(driver):
+    '''
+    查找时间
+    '''
+    lable_element = driver.find_element(By.CSS_SELECTOR, 'article.uk-article.uk-padding-small.uk-background-default.m-article>div.uk-article-meta.uk-margin-small.uk-flex.uk-flex-between>time')
+    return lable_element.text
 
 
 def find_urls(driver):
